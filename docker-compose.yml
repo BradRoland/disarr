@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  homelab-discord-bot:
+    build: .
+    container_name: homelab-discord-bot
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - .env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+    networks:
+      - homelab
+    labels:
+      - "traefik.enable=false"
+
+networks:
+  homelab:
+    external: true
+
+

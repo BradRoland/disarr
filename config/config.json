@@ -1,0 +1,78 @@
+{
+  "refreshInterval": 30000,
+  "dashboardChannelId": null,
+  "alertChannelId": null,
+  "services": {
+    "radarr": {
+      "url": "http://radarr:7878",
+      "apiKey": null
+    },
+    "sonarr": {
+      "url": "http://sonarr:8989",
+      "apiKey": null
+    },
+    "lidarr": {
+      "url": "http://lidarr:8686",
+      "apiKey": null
+    },
+    "readarr": {
+      "url": "http://readarr:8787",
+      "apiKey": null
+    },
+    "prowlarr": {
+      "url": "http://prowlarr:9117",
+      "apiKey": null
+    },
+    "jellyfin": {
+      "url": "http://jellyfin:8096",
+      "apiKey": null
+    },
+    "plex": {
+      "url": "http://plex:32400",
+      "token": null
+    },
+    "qbittorrent": {
+      "url": "http://qbittorrent:8080",
+      "username": "admin",
+      "password": null
+    },
+    "nzbget": {
+      "url": "http://nzbget:6789",
+      "username": "nzbget",
+      "password": null
+    },
+    "overseerr": {
+      "url": "http://overseerr:5055",
+      "apiKey": null
+    },
+    "nextcloud": {
+      "url": "http://nextcloud:80"
+    },
+    "fileflows": {
+      "url": "http://fileflows:5000"
+    },
+    "navidrome": {
+      "url": "http://navidrome:4533"
+    },
+    "immich": {
+      "url": "http://immich:2283"
+    },
+    "proxmox": {
+      "url": "https://proxmox:8006"
+    }
+  },
+  "monitoring": {
+    "criticalContainers": [
+      "jellyfin",
+      "radarr",
+      "sonarr",
+      "qbittorrent",
+      "nextcloud"
+    ],
+    "alertThresholds": {
+      "cpu": 90,
+      "memory": 95,
+      "disk": 95
+    }
+  }
+}

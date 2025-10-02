@@ -1,0 +1,92 @@
+{
+  "radarr": {
+    "name": "Radarr",
+    "url": "http://radarr:7878",
+    "icon": "🎬",
+    "description": "Movie collection manager"
+  },
+  "sonarr": {
+    "name": "Sonarr",
+    "url": "http://sonarr:8989",
+    "icon": "📺",
+    "description": "TV show collection manager"
+  },
+  "lidarr": {
+    "name": "Lidarr",
+    "url": "http://lidarr:8686",
+    "icon": "🎵",
+    "description": "Music collection manager"
+  },
+  "readarr": {
+    "name": "Readarr",
+    "url": "http://readarr:8787",
+    "icon": "📚",
+    "description": "Book collection manager"
+  },
+  "prowlarr": {
+    "name": "Prowlarr",
+    "url": "http://prowlarr:9117",
+    "icon": "🔍",
+    "description": "Indexer manager"
+  },
+  "jellyfin": {
+    "name": "Jellyfin",
+    "url": "http://jellyfin:8096",
+    "icon": "🎬",
+    "description": "Media server"
+  },
+  "plex": {
+    "name": "Plex",
+    "url": "http://plex:32400",
+    "icon": "🎭",
+    "description": "Media server"
+  },
+  "overseerr": {
+    "name": "Overseerr",
+    "url": "http://overseerr:5055",
+    "icon": "🎭",
+    "description": "Media request manager"
+  },
+  "qbittorrent": {
+    "name": "qBittorrent",
+    "url": "http://qbittorrent:8080",
+    "icon": "⬇️",
+    "description": "BitTorrent client"
+  },
+  "nzbget": {
+    "name": "NZBGet",
+    "url": "http://nzbget:6789",
+    "icon": "📰",
+    "description": "Usenet downloader"
+  },
+  "nextcloud": {
+    "name": "Nextcloud",
+    "url": "http://nextcloud:80",
+    "icon": "☁️",
+    "description": "File sync and share"
+  },
+  "fileflows": {
+    "name": "FileFlows",
+    "url": "http://fileflows:5000",
+    "icon": "🔄",
+    "description": "File processing automation"
+  },
+  "navidrome": {
+    "name": "Navidrome",
+    "url": "http://navidrome:4533",
+    "icon": "🎵",
+    "description": "Music streaming server"
+  },
+  "immich": {
+    "name": "Immich",
+    "url": "http://immich:2283",
+    "icon": "📸",
+    "description": "Photo and video backup"
+  },
+  "proxmox": {
+    "name": "Proxmox",
+    "url": "https://proxmox:8006",
+    "icon": "🖥️",
+    "description": "Virtualization platform"
+  }
+}
