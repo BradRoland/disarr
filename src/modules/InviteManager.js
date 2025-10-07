@@ -1,5 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const WizarrIntegration = require('./WizarrIntegration');
+const fs = require('fs').promises;
+const path = require('path');
 
 class InviteManager {
     constructor(client, config, bot) {
@@ -8,6 +10,8 @@ class InviteManager {
         this.bot = bot;
         this.wizarr = new WizarrIntegration(config);
         this.pendingInvites = new Map(); // Store pending invite requests
+        this.configPath = path.join(process.cwd(), 'config', 'pending-invites.json');
+        this.loadPendingInvites(); // Load pending invites from file
     }
 
     async sendApprovalRequest(inviteData) {
@@ -81,12 +85,16 @@ class InviteManager {
                 timestamp: Date.now()
             });
 
+            // Save to persistent storage
+            await this.savePendingInvites();
+
             // Set up button collector for admin responses
             this.setupAdminButtonCollector(message, inviteData.requester.id);
 
             // Auto-cleanup after 24 hours
-            setTimeout(() => {
+            setTimeout(async () => {
                 this.pendingInvites.delete(inviteData.requester.id);
+                await this.savePendingInvites();
             }, 24 * 60 * 60 * 1000);
 
         } catch (error) {
@@ -130,12 +138,14 @@ class InviteManager {
 
             // Remove from pending invites
             this.pendingInvites.delete(requesterId);
+            await this.savePendingInvites();
         });
 
-        collector.on('end', (collected) => {
+        collector.on('end', async (collected) => {
             if (collected.size === 0) {
                 // Auto-cleanup expired requests
                 this.pendingInvites.delete(requesterId);
+                await this.savePendingInvites();
             }
         });
     }
@@ -321,6 +331,50 @@ class InviteManager {
             if (now - inviteData.timestamp > expiredThreshold) {
                 this.pendingInvites.delete(requesterId);
             }
+        }
+        
+        // Save after cleanup
+        await this.savePendingInvites();
+    }
+
+    // =========================================================================
+    // Persistent Storage Methods
+    // =========================================================================
+
+    async loadPendingInvites() {
+        try {
+            const data = await fs.readFile(this.configPath, 'utf8');
+            const invites = JSON.parse(data);
+            
+            // Convert back to Map
+            this.pendingInvites = new Map();
+            for (const [key, value] of Object.entries(invites)) {
+                this.pendingInvites.set(key, value);
+            }
+            
+            console.log(`Loaded ${this.pendingInvites.size} pending invites from storage`);
+        } catch (error) {
+            if (error.code !== 'ENOENT') {
+                console.error('Error loading pending invites:', error);
+            }
+            // File doesn't exist yet, start with empty Map
+            this.pendingInvites = new Map();
+        }
+    }
+
+    async savePendingInvites() {
+        try {
+            // Ensure config directory exists
+            const configDir = path.dirname(this.configPath);
+            await fs.mkdir(configDir, { recursive: true });
+            
+            // Convert Map to object for JSON serialization
+            const invites = Object.fromEntries(this.pendingInvites);
+            
+            await fs.writeFile(this.configPath, JSON.stringify(invites, null, 2));
+            console.log(`Saved ${this.pendingInvites.size} pending invites to storage`);
+        } catch (error) {
+            console.error('Error saving pending invites:', error);
         }
     }
 }

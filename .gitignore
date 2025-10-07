@@ -12,6 +12,7 @@ config/*.json
 config/admin.json
 config/dashboard.json
 config/services.json
+config/pending-invites.json
 
 # Dependencies
 node_modules/
