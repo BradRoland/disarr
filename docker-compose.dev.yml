@@ -1,0 +1,172 @@
+version: '3.8'
+
+# =============================================================================
+# HomeLab Discord Bot - Development Docker Compose Configuration
+# =============================================================================
+# This configuration is optimized for development with:
+# - Source code mounting for live reload
+# - Debug logging enabled
+# - Development-friendly settings
+# - Easy debugging and testing
+#
+# Usage: docker-compose -f docker-compose.dev.yml up -d
+# =============================================================================
+
+services:
+  homelab-discord-bot:
+    # =========================================================================
+    # Container Configuration
+    # =========================================================================
+    image: brad00/discordbotproject-homelab-discord-bot:latest
+    container_name: homelab-discord-bot-dev
+    restart: unless-stopped
+    
+    # =========================================================================
+    # Environment Variables
+    # =========================================================================
+    environment:
+      # Development settings
+      - NODE_ENV=development
+      - LOG_LEVEL=debug
+      - REFRESH_INTERVAL=10000
+      
+      # Load from .env file
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
+      
+      # ARR Stack APIs
+      - RADARR_URL=${RADARR_URL}
+      - RADARR_API_KEY=${RADARR_API_KEY}
+      - SONARR_URL=${SONARR_URL}
+      - SONARR_API_KEY=${SONARR_API_KEY}
+      - LIDARR_URL=${LIDARR_URL}
+      - LIDARR_API_KEY=${LIDARR_API_KEY}
+      - READARR_URL=${READARR_URL}
+      - READARR_API_KEY=${READARR_API_KEY}
+      - PROWLARR_URL=${PROWLARR_URL}
+      - PROWLARR_API_KEY=${PROWLARR_API_KEY}
+      
+      # Media Servers
+      - JELLYFIN_URL=${JELLYFIN_URL}
+      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
+      - PLEX_URL=${PLEX_URL}
+      - PLEX_TOKEN=${PLEX_TOKEN}
+      
+      # Download Clients
+      - QBITTORRENT_URL=${QBITTORRENT_URL}
+      - QBITTORRENT_USERNAME=${QBITTORRENT_USERNAME}
+      - QBITTORRENT_PASSWORD=${QBITTORRENT_PASSWORD}
+      - NZBGET_URL=${NZBGET_URL}
+      - NZBGET_USERNAME=${NZBGET_USERNAME}
+      - NZBGET_PASSWORD=${NZBGET_PASSWORD}
+      
+      # Request Management
+      - OVERSEERR_URL=${OVERSEERR_URL}
+      - OVERSEERR_API_KEY=${OVERSEERR_API_KEY}
+      
+      # File Management
+      - NEXTCLOUD_URL=${NEXTCLOUD_URL}
+      - FILEFLOWS_URL=${FILEFLOWS_URL}
+      - NAVIDROME_URL=${NAVIDROME_URL}
+      - IMMICH_URL=${IMMICH_URL}
+      
+      # Virtualization
+      - PROXMOX_URL=${PROXMOX_URL}
+      - PROXMOX_USERNAME=${PROXMOX_USERNAME}
+      - PROXMOX_PASSWORD=${PROXMOX_PASSWORD}
+      - PROXMOX_REALM=${PROXMOX_REALM}
+      
+      # Additional Services
+      - PORTAINER_URL=${PORTAINER_URL}
+      - WIZARR_URL=${WIZARR_URL}
+      - WIZARR_API_KEY=${WIZARR_API_KEY}
+      - SOLVER_URL=${SOLVER_URL}
+      - STATPP_URL=${STATPP_URL}
+      - BUDGET_URL=${BUDGET_URL}
+      - CRAFT_URL=${CRAFT_URL}
+      - CHAN_URL=${CHAN_URL}
+      - BAZ_URL=${BAZ_URL}
+      - FRONT_URL=${FRONT_URL}
+      - JELLYSTAT_URL=${JELLYSTAT_URL}
+      - PASS_URL=${PASS_URL}
+      - N8N_URL=${N8N_URL}
+      - PLEXSTAT_URL=${PLEXSTAT_URL}
+      - AG_URL=${AG_URL}
+      
+      # Network Access
+      - TAILSCALE_URL=${TAILSCALE_URL}
+      - PLAYIT_URL=${PLAYIT_URL}
+      
+      # Docker Configuration
+      - DOCKER_SOCKET_PATH=${DOCKER_SOCKET_PATH:-/var/run/docker.sock}
+    
+    # =========================================================================
+    # Volume Mounts (Development)
+    # =========================================================================
+    volumes:
+      # Docker socket for container management
+      - ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:rw
+      
+      # Mount source code for live development (if building locally)
+      # - ./src:/app/src:ro
+      # - ./package.json:/app/package.json:ro
+      # - ./package-lock.json:/app/package-lock.json:ro
+      
+      # Development configuration (overwrites container config)
+      - ./config:/app/config
+      - ./logs:/app/logs
+      
+      # Development tools
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+    
+    # =========================================================================
+    # Security & Permissions (Development)
+    # =========================================================================
+    # Run as root for development (easier debugging)
+    user: "0:0"
+    privileged: true
+    
+    # =========================================================================
+    # Development Features
+    # =========================================================================
+    # Expose debug port (if needed)
+    ports:
+      - "9229:9229"  # Node.js debug port
+    
+    # =========================================================================
+    # Health Checks (Relaxed for Development)
+    # =========================================================================
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "node.*src/index.js"]
+      interval: 60s            # Check every 60 seconds (less frequent)
+      timeout: 15s             # Longer timeout for debugging
+      retries: 5               # More retries for development
+      start_period: 60s        # Longer start period
+    
+    # =========================================================================
+    # Logging Configuration (Verbose for Development)
+    # =========================================================================
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"        # Larger log files for debugging
+        max-file: "5"          # Keep more log files
+    
+    # =========================================================================
+    # Labels (Development)
+    # =========================================================================
+    labels:
+      - "traefik.enable=false"
+      - "homelab.bot.name=discord-bot-dev"
+      - "homelab.bot.version=development"
+      - "homelab.bot.environment=development"
+      - "homelab.bot.description=HomeLab Discord Bot - Development Environment"
+
+# =============================================================================
+# Development Networks
+# =============================================================================
+networks:
+  default:
+    driver: bridge
+    name: homelab-bot-dev

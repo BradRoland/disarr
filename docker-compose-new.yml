@@ -1,0 +1,70 @@
+version: '3.8'
+
+# =============================================================================
+# HomeLab Discord Bot - New Format Docker Compose
+# =============================================================================
+# Clean, modern docker-compose configuration with latest best practices
+# Usage: docker-compose -f docker-compose-new.yml up -d
+# =============================================================================
+
+services:
+  homelab-discord-bot:
+    image: brad00/discordbotproject-homelab-discord-bot:latest
+    container_name: homelab-discord-bot
+    restart: unless-stopped
+    
+    # Environment variables from .env file
+    env_file:
+      - .env
+    
+    # Volume mounts
+    volumes:
+      # Docker socket for container management
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+      
+      # Persistent configuration and logs
+      - ./config:/app/config
+      - ./logs:/app/logs
+    
+    # Security and permissions
+    user: "0:0"
+    privileged: true
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "node.*src/index.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Labels
+    labels:
+      - "traefik.enable=false"
+      - "homelab.bot.name=discord-bot"
+      - "homelab.bot.version=latest"
+
+# =============================================================================
+# Optional: Named volumes for better portability
+# =============================================================================
+# Uncomment to use named volumes instead of bind mounts
+# volumes:
+#   bot-config:
+#     driver: local
+#   bot-logs:
+#     driver: local
+
+# =============================================================================
+# Optional: Custom network
+# =============================================================================
+# networks:
+#   default:
+#     driver: bridge
+#     name: homelab-bot-network

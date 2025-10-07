@@ -23,7 +23,7 @@ RUN mkdir -p logs
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
-    adduser -S discord -u 1001
+    adduser -S discord -u 1001 -G nodejs
 
 # Change ownership of the app directory
 RUN chown -R discord:nodejs /app

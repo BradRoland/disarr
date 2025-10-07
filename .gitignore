@@ -1,10 +1,17 @@
-# Environment variables
+# Environment variables and secrets
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 .env.backup
+.env.*.local
+
+# Personal configuration files
+config/*.json
+config/admin.json
+config/dashboard.json
+config/services.json
 
 # Dependencies
 node_modules/
@@ -29,6 +36,19 @@ Thumbs.db
 
 # Docker
 .dockerignore
+
+# Temporary files
+*.tmp
+*.temp
+
+# Personal certificates and keys
+*.crt
+*.key
+*.pem
+
+# Backup files
+*.backup
+*.bak
 
 # Everything else in parent directories
 ../*

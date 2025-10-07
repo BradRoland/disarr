@@ -8,6 +8,148 @@ class MediaDashboard {
             timestamp: 0,
             ttl: 20000 // 20 seconds cache
         };
+        this.dashboardChannelId = null;
+        this.enabledServices = 'all'; // Default to showing all services
+        
+        // Load saved dashboard config on startup
+        this.loadDashboardConfig();
+    }
+
+    setDashboardChannel(channelId) {
+        this.dashboardChannelId = channelId;
+        if (channelId) {
+            process.env.DASHBOARD_CHANNEL_ID = channelId;
+            // Save to a persistent file for server reboots
+            this.saveDashboardConfig(channelId);
+        } else {
+            // Clear the environment variable when removing the channel
+            process.env.DASHBOARD_CHANNEL_ID = '';
+            // Remove the persistent file
+            this.saveDashboardConfig(null);
+        }
+    }
+
+    saveDashboardConfig(channelId) {
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            const configPath = path.join(process.cwd(), 'config', 'dashboard.json');
+            
+            const config = {
+                dashboardChannelId: channelId,
+                enabledServices: this.enabledServices,
+                lastUpdated: new Date().toISOString()
+            };
+            
+            if (channelId) {
+                fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+                console.log(`Dashboard channel saved to config: ${channelId}`);
+            } else {
+                // Remove the config file if channel is cleared
+                if (fs.existsSync(configPath)) {
+                    fs.unlinkSync(configPath);
+                    console.log('Dashboard channel config removed');
+                }
+            }
+        } catch (error) {
+            console.error('Error saving dashboard config:', error);
+        }
+    }
+
+    loadDashboardConfig() {
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            const configPath = path.join(process.cwd(), 'config', 'dashboard.json');
+            
+            if (fs.existsSync(configPath)) {
+                const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+                if (config.dashboardChannelId) {
+                    this.dashboardChannelId = config.dashboardChannelId;
+                    process.env.DASHBOARD_CHANNEL_ID = config.dashboardChannelId;
+                    this.enabledServices = config.enabledServices || 'all';
+                    console.log(`Dashboard channel loaded from config: ${config.dashboardChannelId}, enabled services: ${JSON.stringify(this.enabledServices)}`);
+                    return config.dashboardChannelId;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading dashboard config:', error);
+        }
+        return null;
+    }
+
+    getDashboardChannel() {
+        return this.dashboardChannelId || process.env.DASHBOARD_CHANNEL_ID;
+    }
+
+    setEnabledServices(services) {
+        this.enabledServices = services;
+        // Always save the enabled services, even if no dashboard channel is set
+        this.saveEnabledServices();
+    }
+
+    saveEnabledServices() {
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            const configPath = path.join(process.cwd(), 'config', 'dashboard.json');
+            
+            let config = {};
+            if (fs.existsSync(configPath)) {
+                config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            }
+            
+            config.enabledServices = this.enabledServices;
+            config.lastUpdated = new Date().toISOString();
+            
+            fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+            console.log(`Enabled services saved: ${JSON.stringify(this.enabledServices)}`);
+        } catch (error) {
+            console.error('Error saving enabled services:', error);
+        }
+    }
+
+    getEnabledServices() {
+        if (this.enabledServices === 'all') {
+            return 'all';
+        }
+        return Array.isArray(this.enabledServices) ? this.enabledServices : [];
+    }
+
+    addService(service) {
+        if (this.enabledServices === 'all') {
+            // If showing all, this shouldn't happen since all services are already enabled
+            // But if it does, just return false since the service is already enabled
+            return false;
+        }
+        
+        if (!Array.isArray(this.enabledServices)) {
+            this.enabledServices = [];
+        }
+        
+        if (!this.enabledServices.includes(service)) {
+            this.enabledServices.push(service);
+            this.saveEnabledServices();
+            return true;
+        }
+        return false;
+    }
+
+    removeService(service) {
+        if (this.enabledServices === 'all') {
+            // If showing all, convert to array without this service
+            const allServices = ['jellyfin', 'plex', 'radarr', 'sonarr', 'lidarr', 'prowlarr', 'qbittorrent', 'nzbget', 'overseerr', 'nextcloud', 'fileflows', 'navidrome', 'immich', 'proxmox', 'jellystat', 'n8n', 'plexstat', 'ag'];
+            this.enabledServices = allServices.filter(s => s !== service);
+            this.saveEnabledServices();
+            return true;
+        }
+        
+        if (Array.isArray(this.enabledServices) && this.enabledServices.includes(service)) {
+            this.enabledServices = this.enabledServices.filter(s => s !== service);
+            this.saveEnabledServices();
+            return true;
+        }
+        return false;
     }
 
     async getCurrentActivity() {
@@ -189,22 +331,25 @@ class MediaDashboard {
         }
 
         try {
-            // First, authenticate
-            const authResponse = await axios.get(`${this.services.nzbget.url}/jsonrpc`, {
-                params: {
-                    method: 'login',
-                    params: [this.services.nzbget.username, this.services.nzbget.password]
-                }
-            });
-
-            if (!authResponse.data.result) {
-                throw new Error('Authentication failed');
+            // Clean up the URL and use internal IP for API calls
+            let apiUrl = this.services.nzbget.url;
+            if (apiUrl.includes('brads-lab.com')) {
+                apiUrl = 'http://192.168.12.114:6789';
             }
+            // Ensure URL doesn't end with extra slashes
+            apiUrl = apiUrl.replace(/\/+$/, '');
 
-            // Get download list
-            const downloadsResponse = await axios.get(`${this.services.nzbget.url}/jsonrpc`, {
-                params: {
-                    method: 'listgroups'
+            // Get download list using POST method with proper authentication
+            const downloadsResponse = await axios.post(`${apiUrl}/jsonrpc`, {
+                method: 'listgroups',
+                params: []
+            }, {
+                auth: {
+                    username: this.services.nzbget.username,
+                    password: this.services.nzbget.password
+                },
+                headers: {
+                    'Content-Type': 'application/json'
                 }
             });
 
@@ -230,6 +375,7 @@ class MediaDashboard {
                 }))
             };
         } catch (error) {
+            console.error('NZBGet activity error:', error.message);
             return { status: 'error', message: error.message };
         }
     }
@@ -330,6 +476,102 @@ class MediaDashboard {
             case 'queuedDL': return '⏳';
             case 'queuedUP': return '⏳';
             default: return '❓';
+        }
+    }
+
+    async updateDashboard(channel) {
+        try {
+            const activity = await this.getCurrentActivity();
+            const { EmbedBuilder } = require('discord.js');
+            
+            const embed = new EmbedBuilder()
+                .setTitle('📊 HomeLab Dashboard')
+                .setDescription('Real-time status of your HomeLab services')
+                .setColor(0x0099ff)
+                .setTimestamp();
+
+            // Jellyfin Status
+            const jellyfinEmoji = this.getStatusEmoji(activity.jellyfin.status);
+            let jellyfinText = `${jellyfinEmoji} **Jellyfin** - ${activity.jellyfin.status.toUpperCase()}`;
+            if (activity.jellyfin.status === 'online') {
+                jellyfinText += `\n   Version: ${activity.jellyfin.version}`;
+                jellyfinText += `\n   Active Streams: ${activity.jellyfin.activeStreams}`;
+                if (activity.jellyfin.sessions && activity.jellyfin.sessions.length > 0) {
+                    jellyfinText += '\n   **Current Streams:**';
+                    activity.jellyfin.sessions.forEach(session => {
+                        const title = session.series ? `${session.series} - ${session.episode}` : session.title;
+                        jellyfinText += `\n   • ${session.user}: ${title} (${session.progress}%)`;
+                    });
+                }
+            } else if (activity.jellyfin.message) {
+                jellyfinText += `\n   ${activity.jellyfin.message}`;
+            }
+
+            // Plex Status
+            const plexEmoji = this.getStatusEmoji(activity.plex.status);
+            let plexText = `${plexEmoji} **Plex** - ${activity.plex.status.toUpperCase()}`;
+            if (activity.plex.status === 'online') {
+                plexText += `\n   Version: ${activity.plex.version}`;
+                plexText += `\n   Active Streams: ${activity.plex.activeStreams}`;
+                if (activity.plex.sessions && activity.plex.sessions.length > 0) {
+                    plexText += '\n   **Current Streams:**';
+                    activity.plex.sessions.forEach(session => {
+                        const title = session.series ? `${session.series} - ${session.episode}` : session.title;
+                        plexText += `\n   • ${session.user}: ${title} (${session.progress}%)`;
+                    });
+                }
+            } else if (activity.plex.message) {
+                plexText += `\n   ${activity.plex.message}`;
+            }
+
+            // qBittorrent Status
+            const qbitEmoji = this.getStatusEmoji(activity.qbittorrent.status);
+            let qbitText = `${qbitEmoji} **qBittorrent** - ${activity.qbittorrent.status.toUpperCase()}`;
+            if (activity.qbittorrent.status === 'online') {
+                qbitText += `\n   Total: ${activity.qbittorrent.total} | Downloading: ${activity.qbittorrent.downloading} | Seeding: ${activity.qbittorrent.seeding}`;
+                if (activity.qbittorrent.activeTorrents && activity.qbittorrent.activeTorrents.length > 0) {
+                    qbitText += '\n   **Active Downloads:**';
+                    activity.qbittorrent.activeTorrents.slice(0, 3).forEach(torrent => {
+                        qbitText += `\n   • ${torrent.name} (${torrent.progress}%) - ${torrent.speed}/s`;
+                    });
+                    if (activity.qbittorrent.activeTorrents.length > 3) {
+                        qbitText += `\n   ... and ${activity.qbittorrent.activeTorrents.length - 3} more`;
+                    }
+                }
+            } else if (activity.qbittorrent.message) {
+                qbitText += `\n   ${activity.qbittorrent.message}`;
+            }
+
+            // NZBGet Status
+            const nzbEmoji = this.getStatusEmoji(activity.nzbget.status);
+            let nzbText = `${nzbEmoji} **NZBGet** - ${activity.nzbget.status.toUpperCase()}`;
+            if (activity.nzbget.status === 'online') {
+                nzbText += `\n   Total: ${activity.nzbget.total} | Downloading: ${activity.nzbget.downloading} | Completed: ${activity.nzbget.completed}`;
+                if (activity.nzbget.activeDownloads && activity.nzbget.activeDownloads.length > 0) {
+                    nzbText += '\n   **Active Downloads:**';
+                    activity.nzbget.activeDownloads.slice(0, 3).forEach(download => {
+                        nzbText += `\n   • ${download.name} (${download.progress}%) - ${download.speed}/s`;
+                    });
+                    if (activity.nzbget.activeDownloads.length > 3) {
+                        nzbText += `\n   ... and ${activity.nzbget.activeDownloads.length - 3} more`;
+                    }
+                }
+            } else if (activity.nzbget.message) {
+                nzbText += `\n   ${activity.nzbget.message}`;
+            }
+
+            embed.addFields(
+                { name: '🎬 Media Servers', value: jellyfinText + '\n\n' + plexText, inline: false },
+                { name: '⬇️ Download Clients', value: qbitText + '\n\n' + nzbText, inline: false }
+            );
+
+            embed.setFooter({ text: 'HomeLab Discord Bot • Dashboard' });
+
+            await channel.send({ embeds: [embed] });
+            return true;
+        } catch (error) {
+            console.error('Error updating dashboard:', error);
+            return false;
         }
     }
 }

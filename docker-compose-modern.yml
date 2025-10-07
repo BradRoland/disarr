@@ -1,0 +1,82 @@
+# =============================================================================
+# HomeLab Discord Bot - Modern Docker Compose (No Version Field)
+# =============================================================================
+# Modern docker-compose configuration without the obsolete version field
+# Compatible with Docker Compose v2.0+
+# Usage: docker-compose -f docker-compose-modern.yml up -d
+# =============================================================================
+
+services:
+  homelab-discord-bot:
+    image: brad00/discordbotproject-homelab-discord-bot:latest
+    container_name: homelab-discord-bot
+    restart: unless-stopped
+    
+    # Load environment variables from .env file
+    env_file:
+      - .env
+    
+    # Volume mounts for persistent data
+    volumes:
+      # Docker socket for container management
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+      
+      # Configuration and logs
+      - ./config:/app/config
+      - ./logs:/app/logs
+    
+    # Security configuration
+    user: "0:0"
+    privileged: true
+    
+    # Health monitoring
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "node.*src/index.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Log management
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Container labels
+    labels:
+      - "traefik.enable=false"
+      - "homelab.bot.name=discord-bot"
+      - "homelab.bot.version=latest"
+      - "homelab.bot.description=HomeLab Discord Bot for monitoring and management"
+
+# =============================================================================
+# Optional: Named volumes for production use
+# =============================================================================
+# Uncomment the following section to use named volumes instead of bind mounts
+# This provides better portability and Docker management
+#
+# volumes:
+#   bot-config:
+#     driver: local
+#     driver_opts:
+#       type: none
+#       o: bind
+#       device: ${PWD}/config
+#   bot-logs:
+#     driver: local
+#     driver_opts:
+#       type: none
+#       o: bind
+#       device: ${PWD}/logs
+
+# =============================================================================
+# Optional: Custom network configuration
+# =============================================================================
+# Uncomment to create a custom network for the bot
+#
+# networks:
+#   homelab-bot:
+#     driver: bridge
+#     name: homelab-discord-bot-network

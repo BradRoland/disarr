@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection, ActivityType } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, ActivityType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
@@ -12,6 +12,9 @@ const DashboardEmbed = require('./modules/DashboardEmbed');
 const RichPresence = require('./modules/RichPresence');
 const DownloadMonitor = require('./modules/DownloadMonitor');
 const ProxmoxIntegration = require('./modules/ProxmoxIntegration');
+const WizarrIntegration = require('./modules/WizarrIntegration');
+const AdminManager = require('./modules/AdminManager');
+const InviteManager = require('./modules/InviteManager');
 
 class HomeLabBot {
     constructor() {
@@ -40,7 +43,7 @@ class HomeLabBot {
         // Always use .env configuration instead of config.json
         return {
             refreshInterval: parseInt(process.env.REFRESH_INTERVAL) || 30000,
-            dashboardChannelId: process.env.DASHBOARD_CHANNEL_ID,
+            dashboardChannelId: null, // Will be set dynamically via /dashboard command
             alertChannelId: process.env.ALERT_CHANNEL_ID,
             services: this.loadServicesConfig()
         };
@@ -139,8 +142,8 @@ class HomeLabBot {
         }
         
         // Additional services from published application routes
-        if (shouldIncludeService(process.env.WIZARR_URL)) {
-            services.wizarr = { url: process.env.WIZARR_URL };
+        if (shouldIncludeService(process.env.WIZARR_URL, process.env.WIZARR_API_KEY)) {
+            services.wizarr = { url: process.env.WIZARR_URL, apiKey: process.env.WIZARR_API_KEY };
         }
         if (shouldIncludeService(process.env.SOLVER_URL)) {
             services.solver = { url: process.env.SOLVER_URL };
@@ -190,19 +193,21 @@ class HomeLabBot {
         });
 
         this.client.on('interactionCreate', async (interaction) => {
-            if (!interaction.isChatInputCommand()) return;
+            if (interaction.isChatInputCommand()) {
+                const command = this.commands.get(interaction.commandName);
+                if (!command) return;
 
-            const command = this.commands.get(interaction.commandName);
-            if (!command) return;
-
-            try {
-                await command.execute(interaction, this);
-            } catch (error) {
-                console.error(`Error executing command ${interaction.commandName}:`, error);
-                await interaction.reply({ 
-                    content: 'There was an error while executing this command!', 
-                    ephemeral: true 
-                });
+                try {
+                    await command.execute(interaction, this);
+                } catch (error) {
+                    console.error(`Error executing command ${interaction.commandName}:`, error);
+                    await interaction.reply({ 
+                        content: 'There was an error while executing this command!', 
+                        ephemeral: true 
+                    });
+                }
+            } else if (interaction.isButton()) {
+                await this.handleButtonInteraction(interaction);
             }
         });
 
@@ -217,13 +222,17 @@ class HomeLabBot {
 
         for (const file of commandFiles) {
             const filePath = path.join(commandsPath, file);
-            const command = require(filePath);
-            
-            if ('data' in command && 'execute' in command) {
-                this.commands.set(command.data.name, command);
-                console.log(`✅ Loaded command: ${command.data.name}`);
-            } else {
-                console.log(`⚠️  Command at ${filePath} is missing required "data" or "execute" property.`);
+            try {
+                const command = require(filePath);
+                
+                if ('data' in command && 'execute' in command) {
+                    this.commands.set(command.data.name, command);
+                    console.log(`✅ Loaded command: ${command.data.name}`);
+                } else {
+                    console.log(`⚠️  Command at ${filePath} is missing required "data" or "execute" property.`);
+                }
+            } catch (error) {
+                console.error(`❌ Error loading command ${file}:`, error.message);
             }
         }
     }
@@ -245,10 +254,387 @@ class HomeLabBot {
         this.modules.dockerMonitor = new DockerMonitor();
         this.modules.arrIntegration = new ARRIntegration(this.config.services);
         this.modules.mediaDashboard = new MediaDashboard(this.config.services);
+        // Dashboard channel will be loaded from saved config file if it exists
         this.modules.downloadMonitor = new DownloadMonitor(this.config.services);
         this.modules.proxmoxIntegration = new ProxmoxIntegration(this.config.services);
         this.modules.dashboardEmbed = new DashboardEmbed(this.config);
         this.modules.richPresence = new RichPresence(this.client);
+        this.modules.wizarrIntegration = new WizarrIntegration({
+            wizarr: this.config.services.wizarr
+        });
+        
+        // Debug Wizarr configuration
+        console.log('Wizarr configuration:', {
+            isConfigured: this.modules.wizarrIntegration.isConfigured(),
+            baseUrl: this.modules.wizarrIntegration.baseUrl,
+            hasApiKey: !!this.modules.wizarrIntegration.apiKey
+        });
+        this.modules.adminManager = new AdminManager();
+        this.modules.inviteManager = new InviteManager(this.client, this.config, this);
+    }
+
+    async handleButtonInteraction(interaction) {
+        try {
+            const customId = interaction.customId;
+            
+            if (customId.startsWith('approve_invite_') || customId.startsWith('deny_invite_')) {
+                const isApproval = customId.startsWith('approve_invite_');
+                const parts = customId.split('_');
+                const userId = parts[2];
+                const service = parts[3];
+                
+                // Get the user who made the request
+                const requester = await this.client.users.fetch(userId);
+                
+                       if (isApproval) {
+                           // Try to create a Wizarr invite first
+                           let inviteUrl;
+                           let successMessage = 'approved';
+                           
+                           if (this.modules.wizarrIntegration && this.modules.wizarrIntegration.isConfigured()) {
+                               console.log(`Creating Wizarr invite for ${service} via admin approval...`);
+                               const inviteResult = await this.modules.wizarrIntegration.createInvite({
+                                   service: service
+                               });
+
+                               if (inviteResult.success) {
+                                   inviteUrl = inviteResult.inviteUrl;
+                                   successMessage = 'approved and invite created';
+                               } else {
+                                   console.error('Wizarr API failed during admin approval:', inviteResult.error);
+                                   // Fall back to direct service links
+                                   if (service.toLowerCase() === 'plex') {
+                                       inviteUrl = 'https://plex.brads-lab.com';
+                                   } else if (service.toLowerCase() === 'jellyfin') {
+                                       inviteUrl = 'https://jellyfin.brads-lab.com';
+                                   } else {
+                                       inviteUrl = `https://${service.toLowerCase()}.brads-lab.com`;
+                                   }
+                               }
+                           } else {
+                               // Fall back to direct service links
+                               if (service.toLowerCase() === 'plex') {
+                                   inviteUrl = 'https://plex.brads-lab.com';
+                               } else if (service.toLowerCase() === 'jellyfin') {
+                                   inviteUrl = 'https://jellyfin.brads-lab.com';
+                               } else {
+                                   inviteUrl = `https://${service.toLowerCase()}.brads-lab.com`;
+                               }
+                           }
+                           
+                           // Approve the invite
+                           const approvedEmbed = new EmbedBuilder()
+                               .setTitle('✅ Invite Approved')
+                               .setDescription(`**${requester.username}**'s request for **${service}** has been ${successMessage}!`)
+                               .addFields(
+                                   { name: 'Service Access', value: `[Click here to access ${service}](${inviteUrl})`, inline: false },
+                                   { name: 'Instructions', value: '1. Click the link above\n2. Create an account or log in\n3. Contact an admin if you need help', inline: false }
+                               )
+                               .setColor(0x00ff00)
+                               .setTimestamp();
+                           
+                           await interaction.update({
+                               embeds: [approvedEmbed],
+                               components: []
+                           });
+                           
+                           // Send notification to the requester with the service link
+                           try {
+                               const userEmbed = new EmbedBuilder()
+                                   .setTitle('🎉 Invite Approved!')
+                                   .setDescription(`Your request for **${service}** has been ${successMessage}!`)
+                                   .addFields(
+                                       { name: 'Service', value: service, inline: true },
+                                       { name: 'Approved At', value: new Date().toLocaleString(), inline: true },
+                                       { name: 'Service Access', value: `[Click here to access ${service}](${inviteUrl})`, inline: false },
+                                       { name: 'Instructions', value: '1. Click the link above\n2. Create an account or log in\n3. Contact an admin if you need help', inline: false }
+                                   )
+                                   .setColor(0x00ff00)
+                                   .setTimestamp();
+                               
+                               await requester.send({ embeds: [userEmbed] });
+                           } catch (error) {
+                               console.error('Could not send DM to user:', error);
+                           }
+                    
+                } else {
+                    // Deny the invite
+                    const deniedEmbed = new EmbedBuilder()
+                        .setTitle('❌ Invite Denied')
+                        .setDescription(`**${requester.username}**'s request for **${service}** has been denied.`)
+                        .setColor(0xff0000)
+                        .setTimestamp();
+                    
+                    await interaction.update({
+                        embeds: [deniedEmbed],
+                        components: []
+                    });
+                    
+                    // Send notification to the requester
+                    try {
+                        const userEmbed = new EmbedBuilder()
+                            .setTitle('❌ Invite Denied')
+                            .setDescription(`Your request for **${service}** has been denied.`)
+                            .addFields(
+                                { name: 'Service', value: service, inline: true },
+                                { name: 'Denied At', value: new Date().toLocaleString(), inline: true }
+                            )
+                            .setColor(0xff0000)
+                            .setTimestamp();
+                        
+                        await requester.send({ embeds: [userEmbed] });
+                    } catch (error) {
+                        console.error('Could not send DM to user:', error);
+                    }
+                }
+            } else if (customId.startsWith('dashboard_links_') || customId.startsWith('dashboard_service_')) {
+                await this.handleDashboardButtonInteraction(interaction);
+            }
+        } catch (error) {
+            console.error('Error handling button interaction:', error);
+            await interaction.reply({
+                content: 'There was an error processing this request.',
+                ephemeral: true
+            });
+        }
+    }
+
+    async handleDashboardButtonInteraction(interaction) {
+        try {
+            console.log('Dashboard button interaction received:', interaction.customId);
+            const customId = interaction.customId;
+            
+            if (!this.modules.mediaDashboard) {
+                console.log('MediaDashboard module not available');
+                return await interaction.reply({
+                    content: '❌ Dashboard module not available.',
+                    ephemeral: true
+                });
+            }
+
+            // Defer the interaction to give us time to process
+            await interaction.deferUpdate();
+            console.log('Interaction deferred successfully');
+
+            console.log('Processing button click:', customId);
+
+            // Process the button click first
+            if (customId === 'dashboard_links_all') {
+                console.log('Setting all services enabled');
+                this.modules.mediaDashboard.setEnabledServices('all');
+            } else if (customId === 'dashboard_links_none') {
+                console.log('Setting all services disabled');
+                this.modules.mediaDashboard.setEnabledServices([]);
+            } else if (customId === 'dashboard_links_reset') {
+                console.log('Resetting to default (all enabled)');
+                this.modules.mediaDashboard.setEnabledServices('all');
+            } else if (customId.startsWith('dashboard_service_')) {
+                const service = customId.replace('dashboard_service_', '');
+                const enabledServices = this.modules.mediaDashboard.getEnabledServices();
+                
+                console.log('Toggling service:', service, 'Current enabled services:', enabledServices);
+                
+                let isEnabled = false;
+                if (enabledServices === 'all') {
+                    isEnabled = true;
+                } else if (Array.isArray(enabledServices)) {
+                    isEnabled = enabledServices.includes(service);
+                }
+                
+                if (isEnabled) {
+                    console.log('Removing service:', service);
+                    this.modules.mediaDashboard.removeService(service);
+                } else {
+                    console.log('Adding service:', service);
+                    this.modules.mediaDashboard.addService(service);
+                }
+            }
+
+            console.log('Refreshing dashboard menu...');
+            // Now update the menu with the new state
+            await this.refreshDashboardMenu(interaction);
+
+            // Update the dashboard immediately if it's currently posted
+            try {
+                if (this.lastDashboardMessageId) {
+                    console.log('Updating main dashboard message...');
+                    await this.updateDashboardMessage();
+                }
+            } catch (error) {
+                console.error('Error updating dashboard after button interaction:', error);
+            }
+
+            console.log('Dashboard button interaction completed successfully');
+
+        } catch (error) {
+            console.error('Error handling dashboard button interaction:', error);
+            console.error('Error stack:', error.stack);
+            try {
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply({
+                        content: 'There was an error processing this request.',
+                        ephemeral: true
+                    });
+                } else {
+                    await interaction.reply({
+                        content: 'There was an error processing this request.',
+                        ephemeral: true
+                    });
+                }
+            } catch (replyError) {
+                console.error('Error sending error reply:', replyError);
+            }
+        }
+    }
+
+    async refreshDashboardMenu(interaction) {
+        try {
+            console.log('Refreshing dashboard menu...');
+            const enabledServices = this.modules.mediaDashboard.getEnabledServices();
+            console.log('Current enabled services:', enabledServices);
+            const allServices = [
+                { name: 'Jellyfin', value: 'jellyfin', emoji: '🎬' },
+                { name: 'Plex', value: 'plex', emoji: '🎭' },
+                { name: 'Radarr', value: 'radarr', emoji: '🎬' },
+                { name: 'Sonarr', value: 'sonarr', emoji: '📺' },
+                { name: 'Lidarr', value: 'lidarr', emoji: '🎵' },
+                { name: 'Prowlarr', value: 'prowlarr', emoji: '🔍' },
+                { name: 'qBittorrent', value: 'qbittorrent', emoji: '⬇️' },
+                { name: 'NZBGet', value: 'nzbget', emoji: '📥' },
+                { name: 'Overseerr', value: 'overseerr', emoji: '🎯' },
+                { name: 'Nextcloud', value: 'nextcloud', emoji: '☁️' },
+                { name: 'FileFlows', value: 'fileflows', emoji: '🔄' },
+                { name: 'Navidrome', value: 'navidrome', emoji: '🎶' },
+                { name: 'Immich', value: 'immich', emoji: '📸' },
+                { name: 'Proxmox', value: 'proxmox', emoji: '🖥️' },
+                { name: 'Jellystat', value: 'jellystat', emoji: '📊' },
+                { name: 'N8N', value: 'n8n', emoji: '⚡' },
+                { name: 'PlexStat', value: 'plexstat', emoji: '📈' },
+                { name: 'AG', value: 'ag', emoji: '🔧' }
+            ];
+
+            // Create service selection embed
+            const embed = new EmbedBuilder()
+                .setTitle('🔧 Dashboard Service Links Configuration')
+                .setDescription('Select which services you want to show on the dashboard links.\n\n**Current Status:**')
+                .setColor(0x0099ff)
+                .setTimestamp();
+
+            // Add current status
+            if (enabledServices === 'all') {
+                embed.addFields({ name: '📋 Enabled Services', value: 'All Services', inline: false });
+            } else if (Array.isArray(enabledServices) && enabledServices.length > 0) {
+                const serviceList = enabledServices.map(service => {
+                    const serviceInfo = allServices.find(s => s.value === service);
+                    return serviceInfo ? `${serviceInfo.emoji} ${serviceInfo.name}` : `• ${service}`;
+                }).join('\n');
+                embed.addFields({ name: '📋 Enabled Services', value: serviceList, inline: false });
+            } else {
+                embed.addFields({ name: '📋 Enabled Services', value: 'No Services', inline: false });
+            }
+
+            // Create action buttons
+            const actionRow = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('dashboard_links_all')
+                        .setLabel('✅ Enable All')
+                        .setStyle(ButtonStyle.Success),
+                    new ButtonBuilder()
+                        .setCustomId('dashboard_links_none')
+                        .setLabel('❌ Disable All')
+                        .setStyle(ButtonStyle.Danger),
+                    new ButtonBuilder()
+                        .setCustomId('dashboard_links_reset')
+                        .setLabel('🔄 Reset to Default')
+                        .setStyle(ButtonStyle.Secondary)
+                );
+
+            // Create service selection buttons (first 5 services)
+            const serviceRow1 = new ActionRowBuilder();
+            allServices.slice(0, 5).forEach(service => {
+                let isEnabled = false;
+                if (enabledServices === 'all') {
+                    isEnabled = true;
+                } else if (Array.isArray(enabledServices)) {
+                    isEnabled = enabledServices.includes(service.value);
+                }
+                
+                console.log(`Service ${service.name}: enabled=${isEnabled}, enabledServices=${JSON.stringify(enabledServices)}`);
+                
+                serviceRow1.addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`dashboard_service_${service.value}`)
+                        .setLabel(`${isEnabled ? '✅' : '❌'} ${service.name}`)
+                        .setStyle(isEnabled ? ButtonStyle.Success : ButtonStyle.Secondary)
+                );
+            });
+
+            // Create service selection buttons (next 5 services)
+            const serviceRow2 = new ActionRowBuilder();
+            allServices.slice(5, 10).forEach(service => {
+                let isEnabled = false;
+                if (enabledServices === 'all') {
+                    isEnabled = true;
+                } else if (Array.isArray(enabledServices)) {
+                    isEnabled = enabledServices.includes(service.value);
+                }
+                
+                serviceRow2.addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`dashboard_service_${service.value}`)
+                        .setLabel(`${isEnabled ? '✅' : '❌'} ${service.name}`)
+                        .setStyle(isEnabled ? ButtonStyle.Success : ButtonStyle.Secondary)
+                );
+            });
+
+            // Create service selection buttons (next 5 services)
+            const serviceRow3 = new ActionRowBuilder();
+            allServices.slice(10, 15).forEach(service => {
+                let isEnabled = false;
+                if (enabledServices === 'all') {
+                    isEnabled = true;
+                } else if (Array.isArray(enabledServices)) {
+                    isEnabled = enabledServices.includes(service.value);
+                }
+                
+                serviceRow3.addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`dashboard_service_${service.value}`)
+                        .setLabel(`${isEnabled ? '✅' : '❌'} ${service.name}`)
+                        .setStyle(isEnabled ? ButtonStyle.Success : ButtonStyle.Secondary)
+                );
+            });
+
+            // Create service selection buttons (remaining services)
+            const serviceRow4 = new ActionRowBuilder();
+            allServices.slice(15).forEach(service => {
+                let isEnabled = false;
+                if (enabledServices === 'all') {
+                    isEnabled = true;
+                } else if (Array.isArray(enabledServices)) {
+                    isEnabled = enabledServices.includes(service.value);
+                }
+                
+                serviceRow4.addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`dashboard_service_${service.value}`)
+                        .setLabel(`${isEnabled ? '✅' : '❌'} ${service.name}`)
+                        .setStyle(isEnabled ? ButtonStyle.Success : ButtonStyle.Secondary)
+                );
+            });
+
+            const components = [actionRow, serviceRow1, serviceRow2, serviceRow3, serviceRow4].filter(row => row.components.length > 0);
+
+            // Since we deferred the interaction, we should always use editReply
+            await interaction.editReply({ 
+                embeds: [embed], 
+                components: components
+            });
+
+        } catch (error) {
+            console.error('Error refreshing dashboard menu:', error);
+        }
     }
 
     startPeriodicUpdates() {
@@ -350,54 +736,84 @@ class HomeLabBot {
         }
     }
 
-    async autoPostDashboard() {
-        // Wait a bit for the bot to be fully ready
-        setTimeout(async () => {
+    async autoPostDashboard(immediate = false) {
+        const postDashboard = async () => {
             try {
-                const channel = this.client.channels.cache.get(this.config.dashboardChannelId);
+                // Check if a dashboard channel has been set via the /dashboard command
+                const dashboardChannelId = this.modules.mediaDashboard.getDashboardChannel();
+                if (!dashboardChannelId) {
+                    console.log('No dashboard channel set via /dashboard command, skipping auto-post');
+                    return;
+                }
+
+                const channel = this.client.channels.cache.get(dashboardChannelId);
                 if (!channel) {
                     console.log('Dashboard channel not found, skipping auto-post');
                     return;
                 }
 
                 const dashboardData = await this.getDashboardData();
-                const mainDashboardData = this.modules.dashboardEmbed.createMainDashboard(dashboardData);
-                const quickLinksData = this.modules.dashboardEmbed.createQuickLinksEmbed(dashboardData);
+                const enabledServices = this.modules.mediaDashboard.getEnabledServices();
+                const mainDashboardData = this.modules.dashboardEmbed.createMainDashboard(dashboardData, enabledServices);
 
                 const message = await channel.send({ 
-                    embeds: [...mainDashboardData.embeds, ...quickLinksData.embeds],
-                    components: [...mainDashboardData.components, ...quickLinksData.components]
+                    embeds: mainDashboardData.embeds,
+                    components: mainDashboardData.components
                 });
 
                 // Store the message ID for auto-updates
                 this.lastDashboardMessageId = message.id;
-                console.log('✅ Auto-posted dashboard to channel, will update every 10 seconds');
+                console.log(`✅ Auto-posted dashboard to ${channel.name}, will update every 10 seconds`);
             } catch (error) {
                 console.error('Error auto-posting dashboard:', error);
             }
-        }, 5000); // Wait 5 seconds after bot starts
+        };
+
+        if (immediate) {
+            // Post immediately (called from dashboard command)
+            await postDashboard();
+        } else {
+            // Wait a bit for the bot to be fully ready (called on startup)
+            setTimeout(postDashboard, 5000);
+        }
     }
 
     async updateDashboardMessage() {
         if (!this.lastDashboardMessageId) return; // No dashboard message to update yet
 
         try {
-            const channel = this.client.channels.cache.get(this.config.dashboardChannelId);
+            // Check if a dashboard channel has been set via the /dashboard command
+            const dashboardChannelId = this.modules.mediaDashboard.getDashboardChannel();
+            if (!dashboardChannelId) {
+                // No channel set, reset the message ID
+                this.lastDashboardMessageId = null;
+                return;
+            }
+
+            const channel = this.client.channels.cache.get(dashboardChannelId);
             if (!channel) return;
 
             const message = await channel.messages.fetch(this.lastDashboardMessageId);
-            if (!message) return;
+            if (!message) {
+                // Message was deleted, reset the ID so we can create a new one
+                this.lastDashboardMessageId = null;
+                return;
+            }
 
             const dashboardData = await this.getDashboardData();
-            const mainDashboardData = this.modules.dashboardEmbed.createMainDashboard(dashboardData);
-            const quickLinksData = this.modules.dashboardEmbed.createQuickLinksEmbed(dashboardData);
+            const enabledServices = this.modules.mediaDashboard.getEnabledServices();
+            const mainDashboardData = this.modules.dashboardEmbed.createMainDashboard(dashboardData, enabledServices);
 
             await message.edit({ 
-                embeds: [...mainDashboardData.embeds, ...quickLinksData.embeds],
-                components: [...mainDashboardData.components, ...quickLinksData.components]
+                embeds: mainDashboardData.embeds,
+                components: mainDashboardData.components
             });
         } catch (error) {
             console.error('Error updating dashboard message:', error);
+            // If the message doesn't exist, reset the ID
+            if (error.code === 10008) { // Unknown Message
+                this.lastDashboardMessageId = null;
+            }
         }
     }
 

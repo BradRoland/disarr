@@ -1,241 +1,268 @@
-# HomeLab Discord Bot
+# 🏠 HomeLab Discord Bot
 
-A comprehensive Discord bot for monitoring and managing your HomeLab infrastructure. Features real-time server stats, Docker container monitoring, ARR stack integration, media activity tracking, and quick access links to all hosted services.
+A comprehensive Discord bot for monitoring and managing your HomeLab infrastructure. This bot provides real-time monitoring, automated dashboards, invite management, and system administration tools all within Discord.
 
-## 🚀 Features
+![Discord Bot](https://img.shields.io/badge/Discord-Bot-7289DA?style=for-the-badge&logo=discord)
+![Docker](https://img.shields.io/badge/Docker-Container-2496ED?style=for-the-badge&logo=docker)
+![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=node.js)
 
-- **📊 Real-time Dashboard**: Comprehensive embed showing server stats, container status, and media activity
-- **🖥️ Server Monitoring**: CPU, RAM, disk usage, and network statistics with progress bars
-- **🐳 Docker Management**: Container status monitoring and basic control (start/stop/restart)
-- **📡 ARR Stack Integration**: Radarr, Sonarr, Lidarr, Readarr, and Prowlarr status and queue monitoring
-- **🎬 Media Activity**: Jellyfin/Plex streaming activity and qBittorrent/NZBGet download monitoring
-- **🔗 Quick Links**: One-click access to all hosted services via Discord buttons
-- **🎯 Rich Presence**: Dynamic bot status showing current activity
-- **⚡ Auto-refresh**: Configurable periodic updates and caching
+## ✨ Features
 
-## 🛠️ Tech Stack
+### 🔍 **Monitoring & Dashboards**
+- **Real-time Server Stats**: CPU, Memory, Disk, Network usage
+- **Media Activity**: Jellyfin/Plex streaming sessions, download progress
+- **ARR Stack Monitoring**: Radarr, Sonarr, Lidarr, Readarr, Prowlarr status
+- **Docker Container Management**: View, start, stop, restart containers
+- **Auto-updating Dashboard**: Live dashboard with configurable refresh intervals
 
-- **Node.js** with Discord.js v14
-- **Docker** for containerization
-- **System Information** for host metrics
-- **Dockerode** for container management
-- **Axios** for API communications
+### 🎫 **Invite Management**
+- **Wizarr Integration**: Automated invite creation with 2-day expiration
+- **Admin Approval System**: All invites require admin approval
+- **Direct Invite Commands**: Admins can send invites directly to users
+- **Invite Tracking**: Monitor pending and completed invites
 
-## 📋 Prerequisites
+### 🛠️ **System Administration**
+- **Admin-only Commands**: Secure access control for sensitive operations
+- **Channel Management**: Configure dashboard and admin notification channels
+- **Service Link Management**: Interactive menu to enable/disable service links
+- **Live Updates**: Real-time system monitoring with configurable intervals
 
-- Node.js 18+ or Docker
-- Discord Bot Token
-- Access to Docker socket (for container monitoring)
-- API keys for services you want to monitor
+### 🔗 **Service Integration**
+- **Media Servers**: Jellyfin, Plex monitoring and quick access
+- **Download Clients**: qBittorrent, NZBGet activity tracking
+- **Request Management**: Overseerr integration
+- **File Management**: Nextcloud, FileFlows, Navidrome, Immich
+- **Virtualization**: Proxmox VE monitoring
+- **Additional Services**: 20+ HomeLab services supported
 
 ## 🚀 Quick Start
 
-### 1. Clone and Setup
+### Prerequisites
+- Docker and Docker Compose
+- Discord Bot Token
+- Discord Server with Administrator permissions
 
+### 1. Clone the Repository
 ```bash
-git clone <repository-url>
-cd homelab-discord-bot
-npm install
+git clone https://github.com/BradRoland/disarr.git
+cd disarr
 ```
 
-### 2. Environment Configuration
-
-Copy the example environment file and configure your settings:
-
+### 2. Configure Environment
 ```bash
-cp env.example .env
+cp .env.example .env
+# Edit .env with your configuration
 ```
 
-Edit `.env` with your configuration:
-
-```env
-# Discord Bot Configuration
-DISCORD_TOKEN=your_discord_bot_token_here
-DISCORD_CLIENT_ID=your_discord_client_id_here
-DISCORD_GUILD_ID=your_discord_server_id_here
-
-# Service URLs and API Keys
-RADARR_URL=http://radarr:7878
-RADARR_API_KEY=your_radarr_api_key
-# ... configure other services
-```
-
-### 3. Docker Deployment (Recommended)
-
+### 3. Deploy with Docker
 ```bash
-# Build and run with docker-compose
 docker-compose up -d
-
-# Or build manually
-docker build -t homelab-discord-bot .
-docker run -d --name homelab-discord-bot \
-  --env-file .env \
-  -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  -v ./config:/app/config:ro \
-  homelab-discord-bot
 ```
 
-### 4. Local Development
+### 4. Set Up Discord Bot
+1. Create a Discord application at [Discord Developer Portal](https://discord.com/developers/applications)
+2. Create a bot and copy the token
+3. Invite the bot to your server with Administrator permissions
+4. Update the `.env` file with your bot token and server ID
 
+## 📋 Configuration
+
+### Required Environment Variables
+
+#### Discord Configuration
+```env
+DISCORD_TOKEN=your_discord_bot_token
+DISCORD_CLIENT_ID=your_discord_client_id
+DISCORD_GUILD_ID=your_discord_server_id
+```
+
+#### Core Services
+```env
+# Media Servers
+JELLYFIN_URL=http://jellyfin.yourdomain.com
+JELLYFIN_API_KEY=your_jellyfin_api_key
+PLEX_URL=http://plex.yourdomain.com
+PLEX_TOKEN=your_plex_token
+
+# Download Clients
+QBITTORRENT_URL=http://qbittorrent.yourdomain.com:8080
+QBITTORRENT_USERNAME=your_username
+QBITTORRENT_PASSWORD=your_password
+NZBGET_URL=http://nzbget.yourdomain.com:6789
+NZBGET_USERNAME=your_username
+NZBGET_PASSWORD=your_password
+```
+
+#### ARR Stack
+```env
+RADARR_URL=http://radarr.yourdomain.com
+RADARR_API_KEY=your_radarr_api_key
+SONARR_URL=http://sonarr.yourdomain.com
+SONARR_API_KEY=your_sonarr_api_key
+PROWLARR_URL=http://prowlarr.yourdomain.com:9696
+PROWLARR_API_KEY=your_prowlarr_api_key
+```
+
+#### Invite Management
+```env
+WIZARR_URL=http://wizarr.yourdomain.com
+WIZARR_API_KEY=your_wizarr_api_key
+```
+
+### Optional Services
+See `.env.example` for a complete list of supported services including:
+- Lidarr, Readarr
+- Overseerr
+- Nextcloud, FileFlows
+- Navidrome, Immich
+- Proxmox VE
+- And many more...
+
+## 🎮 Bot Commands
+
+### Public Commands
+- `/invite` - Request access to media services
+- `/arr` - Check ARR stack status
+- `/media` - View current media activity
+- `/server` - Display server statistics
+- `/links` - Show quick access links
+
+### Admin Commands
+- `/admin` - Configure admin notification channel
+- `/dashboard` - Manage auto-posting dashboard
+- `/invitegive` - Send invite directly to user
+- `/invitemanage` - Manage pending invites
+- `/docker` - Docker container management
+- `/live` - Start live dashboard updates
+- `/stop` - Stop live dashboard updates
+
+## 🏗️ Architecture
+
+### Core Modules
+- **ServerMonitor**: System resource monitoring
+- **MediaDashboard**: Media activity tracking
+- **DockerMonitor**: Container management
+- **WizarrIntegration**: Invite system
+- **AdminManager**: Admin channel management
+- **InviteManager**: Invite request handling
+
+### Data Storage
+- **Persistent Configuration**: JSON files in `config/` directory
+- **Dashboard Settings**: Channel and service preferences
+- **Admin Settings**: Notification channel configuration
+- **Invite Tracking**: Pending request management
+
+## 🔧 Advanced Configuration
+
+### Custom Docker Socket Path
+If your Docker socket is in a non-standard location:
+```env
+DOCKER_SOCKET_PATH=/custom/path/to/docker.sock
+```
+
+### Dashboard Customization
+Use the interactive `/dashboard links` command to:
+- Enable/disable specific service links
+- Configure auto-posting channel
+- Set refresh intervals
+
+### Admin Channel Setup
+Configure where admin notifications are sent:
 ```bash
-# Install dependencies
-npm install
-
-# Start in development mode
-npm run dev
-
-# Or start normally
-npm start
+/admin set #admin-channel
 ```
 
-## 📖 Commands
+## 🐳 Docker Deployment
 
-| Command | Description | Example |
-|---------|-------------|---------|
-| `/dashboard` | Show main dashboard with all stats | `/dashboard visibility:public` |
-| `/server` | Display detailed server statistics | `/server type:all` |
-| `/docker` | Docker container status and management | `/docker action:status` |
-| `/arr` | ARR stack status and activity | `/arr service:all` |
-| `/media` | Current media activity and downloads | `/media type:all` |
-| `/links` | Quick access links to all services | `/links` |
-
-## ⚙️ Configuration
-
-### Service Configuration
-
-Edit `config/services.json` to customize service links and descriptions:
-
-```json
-{
-  "jellyfin": {
-    "name": "Jellyfin",
-    "url": "http://jellyfin:8096",
-    "icon": "🎬",
-    "description": "Media server"
-  }
-}
+### Standard Deployment
+```bash
+docker-compose up -d
 ```
 
-### Monitoring Configuration
-
-Configure critical containers and alert thresholds in `config/config.json`:
-
-```json
-{
-  "monitoring": {
-    "criticalContainers": ["jellyfin", "radarr", "sonarr"],
-    "alertThresholds": {
-      "cpu": 90,
-      "memory": 95,
-      "disk": 95
-    }
-  }
-}
+### Production Deployment
+```bash
+# Use production docker-compose file
+docker-compose -f docker-compose.prod.yml up -d
 ```
 
-## 🔧 API Integration
-
-### Supported Services
-
-- **Radarr** - Movie collection management
-- **Sonarr** - TV show collection management  
-- **Lidarr** - Music collection management
-- **Readarr** - Book collection management
-- **Prowlarr** - Indexer management
-- **Jellyfin** - Media streaming
-- **Plex** - Media streaming
-- **qBittorrent** - BitTorrent client
-- **NZBGet** - Usenet downloader
-- **Overseerr** - Media requests
-
-### Adding New Services
-
-1. Add service configuration to `config/services.json`
-2. Update environment variables in `.env`
-3. Add API integration in the appropriate module
-4. Update dashboard embed to include the service
-
-## 🐳 Docker Configuration
-
-The bot runs in a Docker container with the following setup:
-
-- **Base Image**: Node.js 18 Alpine
-- **Docker Socket**: Mounted for container monitoring
-- **Config Volume**: Read-only mount for configuration
-- **Logs Volume**: For persistent logging
-- **Health Check**: Built-in health monitoring
-
-### Docker Compose
-
-```yaml
-version: '3.8'
-services:
-  homelab-discord-bot:
-    build: .
-    container_name: homelab-discord-bot
-    restart: unless-stopped
-    env_file: .env
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./config:/app/config:ro
-    networks:
-      - homelab
+### Health Checks
+The container includes health checks to ensure the bot is running properly:
+```bash
+docker ps  # Check container status
+docker logs disarr  # View logs
 ```
 
-## 🔒 Security
+## 🔒 Security Features
 
-- API keys stored in environment variables
-- Docker socket mounted read-only
-- Non-root user in container
-- Input validation and error handling
-- Rate limiting on API calls
+### Admin Permission System
+- All administrative commands require Administrator permissions
+- Slash command visibility restricted to admins
+- Runtime permission validation
 
-## 📊 Monitoring
+### Secure Configuration
+- Environment variable-based configuration
+- No hardcoded credentials
+- Docker socket access with proper permissions
 
-The bot provides comprehensive monitoring:
+## 📊 Monitoring & Logs
 
-- **Server Metrics**: CPU, RAM, disk, network usage
-- **Container Health**: Running/stopped status, resource usage
-- **Service Status**: API connectivity and response times
-- **Media Activity**: Active streams and downloads
-- **Queue Monitoring**: ARR stack download queues
+### Log Files
+- Application logs: `./logs/`
+- Docker logs: `docker logs disarr`
 
-## 🚨 Alerts
-
-Configure alerts for:
-- Critical container failures
-- High resource usage (CPU/RAM/disk)
-- Service connectivity issues
-- Failed downloads in ARR stack
+### Health Monitoring
+- Automatic health checks
+- Rich presence status updates
+- Error logging and recovery
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Add tests if applicable
+4. Test thoroughly
 5. Submit a pull request
 
-## 📄 License
+### Development Setup
+```bash
+npm install
+npm run dev  # Development mode with auto-reload
+```
 
-MIT License - see LICENSE file for details
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🆘 Support
 
-For issues and questions:
-1. Check the logs: `docker logs homelab-discord-bot`
-2. Verify configuration in `.env` and `config/`
-3. Ensure all required services are accessible
-4. Check Discord bot permissions
+### Common Issues
 
-## 🔄 Updates
+#### Bot Not Responding
+- Check Discord token and permissions
+- Verify bot is invited to server
+- Check container logs for errors
 
-The bot supports:
-- Hot reloading in development
-- Graceful shutdown handling
-- Automatic restart on failure
-- Configuration updates without restart
+#### Docker Monitoring Not Working
+- Ensure Docker socket path is correct
+- Check container has proper permissions
+- Verify Docker daemon is running
+
+#### Invite System Issues
+- Verify Wizarr API key and URL
+- Check admin channel configuration
+- Ensure Wizarr service is accessible
+
+### Getting Help
+- Check the [Issues](https://github.com/BradRoland/disarr/issues) page
+- Review the [Wiki](https://github.com/BradRoland/disarr/wiki)
+- Join our [Discord Server](https://discord.gg/your-invite) for community support
+
+## 🙏 Acknowledgments
+
+- Discord.js community for the excellent library
+- HomeLab community for inspiration and feedback
+- All contributors who help improve this project
 
 ---
 
-**Made with ❤️ for HomeLab enthusiasts**
+**Made with ❤️ for the HomeLab community**

@@ -10,14 +10,6 @@ module.exports = {
 
         try {
             const dashboard = bot.modules.dashboardEmbed.createQuickLinksEmbed();
-            
-            // Add multiple rows of buttons
-            dashboard.components = [
-                bot.modules.dashboardEmbed.createQuickLinksRow(),
-                bot.modules.dashboardEmbed.createSecondQuickLinksRow(),
-                bot.modules.dashboardEmbed.createThirdQuickLinksRow()
-            ];
-
             await interaction.editReply(dashboard);
         } catch (error) {
             console.error('Error creating links:', error);

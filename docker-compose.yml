@@ -1,25 +1,175 @@
 version: '3.8'
 
+# =============================================================================
+# HomeLab Discord Bot - Docker Compose Configuration
+# =============================================================================
+# This configuration deploys a comprehensive Discord bot for HomeLab monitoring
+# and management. The bot provides real-time monitoring, automated dashboards,
+# invite management, and system administration tools.
+#
+# Quick Start:
+# 1. Copy .env.example to .env and configure your settings
+# 2. Run: docker-compose up -d
+# 3. Configure your Discord bot and invite it to your server
+#
+# Documentation: https://github.com/yourusername/homelab-discord-bot
+# =============================================================================
+
 services:
   homelab-discord-bot:
-    build: .
+    # =========================================================================
+    # Container Configuration
+    # =========================================================================
+    image: brad00/discordbotproject-homelab-discord-bot:latest
     container_name: homelab-discord-bot
     restart: unless-stopped
+    
+    # =========================================================================
+    # Environment Variables
+    # =========================================================================
     environment:
+      # -----------------------------------------------------------------------
+      # Core Bot Configuration
+      # -----------------------------------------------------------------------
       - NODE_ENV=production
-    env_file:
-      - .env
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
+      - REFRESH_INTERVAL=${REFRESH_INTERVAL:-30000}
+      
+      # -----------------------------------------------------------------------
+      # ARR Stack APIs (Automated Media Management)
+      # -----------------------------------------------------------------------
+      - RADARR_URL=${RADARR_URL}
+      - RADARR_API_KEY=${RADARR_API_KEY}
+      - SONARR_URL=${SONARR_URL}
+      - SONARR_API_KEY=${SONARR_API_KEY}
+      - LIDARR_URL=${LIDARR_URL}
+      - LIDARR_API_KEY=${LIDARR_API_KEY}
+      - READARR_URL=${READARR_URL}
+      - READARR_API_KEY=${READARR_API_KEY}
+      - PROWLARR_URL=${PROWLARR_URL}
+      - PROWLARR_API_KEY=${PROWLARR_API_KEY}
+      
+      # -----------------------------------------------------------------------
+      # Media Servers (Streaming & Library Management)
+      # -----------------------------------------------------------------------
+      - JELLYFIN_URL=${JELLYFIN_URL}
+      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
+      - PLEX_URL=${PLEX_URL}
+      - PLEX_TOKEN=${PLEX_TOKEN}
+      
+      # -----------------------------------------------------------------------
+      # Download Clients (Torrent & Usenet)
+      # -----------------------------------------------------------------------
+      - QBITTORRENT_URL=${QBITTORRENT_URL}
+      - QBITTORRENT_USERNAME=${QBITTORRENT_USERNAME}
+      - QBITTORRENT_PASSWORD=${QBITTORRENT_PASSWORD}
+      - NZBGET_URL=${NZBGET_URL}
+      - NZBGET_USERNAME=${NZBGET_USERNAME}
+      - NZBGET_PASSWORD=${NZBGET_PASSWORD}
+      
+      # -----------------------------------------------------------------------
+      # Request Management (Media Requests)
+      # -----------------------------------------------------------------------
+      - OVERSEERR_URL=${OVERSEERR_URL}
+      - OVERSEERR_API_KEY=${OVERSEERR_API_KEY}
+      
+      # -----------------------------------------------------------------------
+      # File Management & Storage
+      # -----------------------------------------------------------------------
+      - NEXTCLOUD_URL=${NEXTCLOUD_URL}
+      - FILEFLOWS_URL=${FILEFLOWS_URL}
+      - NAVIDROME_URL=${NAVIDROME_URL}
+      - IMMICH_URL=${IMMICH_URL}
+      
+      # -----------------------------------------------------------------------
+      # Virtualization & Infrastructure
+      # -----------------------------------------------------------------------
+      - PROXMOX_URL=${PROXMOX_URL}
+      - PROXMOX_USERNAME=${PROXMOX_USERNAME}
+      - PROXMOX_PASSWORD=${PROXMOX_PASSWORD}
+      - PROXMOX_REALM=${PROXMOX_REALM}
+      
+      # -----------------------------------------------------------------------
+      # Additional HomeLab Services
+      # -----------------------------------------------------------------------
+      - PORTAINER_URL=${PORTAINER_URL}
+      - WIZARR_URL=${WIZARR_URL}
+      - WIZARR_API_KEY=${WIZARR_API_KEY}
+      - SOLVER_URL=${SOLVER_URL}
+      - STATPP_URL=${STATPP_URL}
+      - BUDGET_URL=${BUDGET_URL}
+      - CRAFT_URL=${CRAFT_URL}
+      - CHAN_URL=${CHAN_URL}
+      - BAZ_URL=${BAZ_URL}
+      - FRONT_URL=${FRONT_URL}
+      - JELLYSTAT_URL=${JELLYSTAT_URL}
+      - PASS_URL=${PASS_URL}
+      - N8N_URL=${N8N_URL}
+      - PLEXSTAT_URL=${PLEXSTAT_URL}
+      - AG_URL=${AG_URL}
+      
+      # -----------------------------------------------------------------------
+      # Network Access (VPN & Remote Access)
+      # -----------------------------------------------------------------------
+      - TAILSCALE_URL=${TAILSCALE_URL}
+      - PLAYIT_URL=${PLAYIT_URL}
+      
+      # -----------------------------------------------------------------------
+      # Docker Configuration
+      # -----------------------------------------------------------------------
+      - DOCKER_SOCKET_PATH=${DOCKER_SOCKET_PATH:-/var/run/docker.sock}
+    
+    # =========================================================================
+    # Volume Mounts
+    # =========================================================================
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./config:/app/config:ro
+      # Docker socket for container management (REQUIRED for Docker commands)
+      - ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:rw
+      
+      # Persistent configuration storage
+      - ./config:/app/config
+      
+      # Application logs
       - ./logs:/app/logs
-    networks:
-      - homelab
+    
+    # =========================================================================
+    # Security & Permissions
+    # =========================================================================
+    # Run as root to access Docker socket (required for container management)
+    user: "0:0"
+    
+    # Privileged mode for Docker socket access
+    privileged: true
+    
+    # =========================================================================
+    # Network & Labels
+    # =========================================================================
     labels:
+      # Disable Traefik routing (bot doesn't need HTTP access)
       - "traefik.enable=false"
+      
+      # Add custom labels for identification
+      - "homelab.bot.name=discord-bot"
+      - "homelab.bot.version=latest"
+      - "homelab.bot.description=HomeLab Discord Bot for monitoring and management"
 
-networks:
-  homelab:
-    external: true
+# =============================================================================
+# Network Configuration (Optional)
+# =============================================================================
+# Uncomment and configure if you need custom networking
+# networks:
+#   homelab:
+#     external: true
+#     name: homelab-network
 
-
+# =============================================================================
+# Volume Configuration (Optional)
+# =============================================================================
+# Uncomment if you want to use named volumes instead of bind mounts
+# volumes:
+#   bot-config:
+#     driver: local
+#   bot-logs:
+#     driver: local

@@ -149,22 +149,24 @@ class ARRIntegration {
         }
 
         try {
+            // Try the correct Prowlarr API endpoints
             const [systemStatus, indexerStatus] = await Promise.all([
                 this.makeRequest(`${this.services.prowlarr.url}/api/v1/system/status`, this.services.prowlarr.apiKey),
-                this.makeRequest(`${this.services.prowlarr.url}/api/v1/indexer/status`, this.services.prowlarr.apiKey)
+                this.makeRequest(`${this.services.prowlarr.url}/api/v1/indexer`, this.services.prowlarr.apiKey)
             ]);
 
-            const activeIndexers = indexerStatus?.filter(indexer => indexer.status === 'healthy').length || 0;
+            const activeIndexers = indexerStatus?.filter(indexer => indexer.enable).length || 0;
             const totalIndexers = indexerStatus?.length || 0;
 
             return {
                 status: 'online',
-                version: systemStatus.version,
+                version: systemStatus?.version || 'Unknown',
                 activeIndexers,
                 totalIndexers,
-                healthy: activeIndexers === totalIndexers
+                healthy: activeIndexers > 0
             };
         } catch (error) {
+            console.error('Prowlarr API Error:', error.message);
             return { status: 'error', message: error.message };
         }
     }

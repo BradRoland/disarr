@@ -2,7 +2,19 @@ const Docker = require('dockerode');
 
 class DockerMonitor {
     constructor() {
-        this.docker = new Docker({ socketPath: '/var/run/docker.sock' });
+        // Get Docker socket path from environment variable, default to standard path
+        this.socketPath = process.env.DOCKER_SOCKET_PATH || '/var/run/docker.sock';
+        
+        try {
+            this.docker = new Docker({ socketPath: this.socketPath });
+            this.isAvailable = true;
+            console.log(`Docker client initialized with socket: ${this.socketPath}`);
+        } catch (error) {
+            console.error(`Failed to initialize Docker client with socket ${this.socketPath}:`, error.message);
+            this.docker = null;
+            this.isAvailable = false;
+        }
+        
         this.cache = {
             data: null,
             timestamp: 0,
@@ -18,6 +30,12 @@ class DockerMonitor {
             return this.cache.data;
         }
 
+        // Check if Docker is available
+        if (!this.isAvailable || !this.docker) {
+            console.log('Docker monitoring not available - socket not accessible');
+            return this.getErrorStats('Docker socket not accessible');
+        }
+
         try {
             const containers = await this.docker.listContainers({ all: true });
             const containerStats = await this.getContainerStats(containers);
@@ -27,7 +45,8 @@ class DockerMonitor {
                 running: containers.filter(c => c.State === 'running').length,
                 stopped: containers.filter(c => c.State === 'exited').length,
                 containers: containerStats,
-                timestamp: now
+                timestamp: now,
+                status: 'online'
             };
 
             // Cache the results
@@ -37,7 +56,7 @@ class DockerMonitor {
             return stats;
         } catch (error) {
             console.error('Error getting Docker container status:', error);
-            return this.getErrorStats();
+            return this.getErrorStats(error.message);
         }
     }
 
@@ -191,13 +210,15 @@ class DockerMonitor {
         }
     }
 
-    getErrorStats() {
+    getErrorStats(errorMessage = 'Docker monitoring unavailable') {
         return {
             total: 0,
             running: 0,
             stopped: 0,
             containers: [],
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            status: 'offline',
+            error: errorMessage
         };
     }
 

@@ -6,7 +6,7 @@ class DashboardEmbed {
         this.services = config.services;
     }
 
-    createMainDashboard(data) {
+    createMainDashboard(data, enabledServices = 'all') {
         const embed = new EmbedBuilder()
             .setTitle('🖥️ HomeLab Dashboard')
             .setDescription('Real-time status overview of Brad\'s Home Server')
@@ -62,18 +62,71 @@ class DashboardEmbed {
             inline: false
         });
 
-        const components = [
+        // Create components based on enabled services
+        const allComponents = [
             this.createQuickLinksRow(),
             this.createSecondQuickLinksRow(),
             this.createThirdQuickLinksRow(),
-            this.createFourthQuickLinksRow(),
-            this.createFifthQuickLinksRow()
+            this.createFourthQuickLinksRow()
         ].filter(row => row !== null);
+
+        let components = [];
+        if (enabledServices === 'all') {
+            components = allComponents;
+        } else if (Array.isArray(enabledServices) && enabledServices.length === 0) {
+            components = []; // No links
+        } else if (Array.isArray(enabledServices)) {
+            // Filter components to only include enabled services
+            components = this.filterComponentsByServices(allComponents, enabledServices);
+        }
         
         return {
             embeds: [embed],
             components: components.length > 0 ? components : []
         };
+    }
+
+    filterComponentsByServices(components, enabledServices) {
+        const serviceToRowMap = {
+            'jellyfin': 0, 'plex': 0, 'overseerr': 0, 'radarr': 0, 'sonarr': 0,
+            'lidarr': 1, 'readarr': 1, 'prowlarr': 1, 'qbittorrent': 1, 'nzbget': 1,
+            'nextcloud': 2, 'fileflows': 2, 'navidrome': 2, 'immich': 2, 'proxmox': 2,
+            'jellystat': 3, 'n8n': 3, 'plexstat': 3, 'ag': 3
+        };
+
+        const filteredComponents = [];
+        const enabledRows = new Set();
+
+        // Determine which rows should be included
+        enabledServices.forEach(service => {
+            const rowIndex = serviceToRowMap[service];
+            if (rowIndex !== undefined) {
+                enabledRows.add(rowIndex);
+            }
+        });
+
+        // Create filtered rows with only enabled services
+        enabledRows.forEach(rowIndex => {
+            if (components[rowIndex]) {
+                const originalRow = components[rowIndex];
+                const filteredRow = new ActionRowBuilder();
+                
+                // Filter buttons in this row to only include enabled services
+                originalRow.components.forEach(button => {
+                    const serviceName = button.data.label.toLowerCase();
+                    if (enabledServices.includes(serviceName)) {
+                        filteredRow.addComponents(button);
+                    }
+                });
+                
+                // Only add the row if it has buttons
+                if (filteredRow.components.length > 0) {
+                    filteredComponents.push(filteredRow);
+                }
+            }
+        });
+
+        return filteredComponents;
     }
 
     createServerStatsEmbed(serverData) {
@@ -323,10 +376,24 @@ class DashboardEmbed {
     }
 
     createQuickLinksEmbed() {
-        // Quick links are now included in the main dashboard
+        const embed = new EmbedBuilder()
+            .setTitle('🔗 Quick Access Links')
+            .setDescription('Click the buttons below to access your HomeLab services')
+            .setColor(0x0099ff)
+            .setTimestamp()
+            .setFooter({ text: 'HomeLab Discord Bot • Quick Links' });
+
+        // Add multiple rows of buttons (max 4 to stay under Discord's 5-row limit)
+        const components = [
+            this.createQuickLinksRow(),
+            this.createSecondQuickLinksRow(),
+            this.createThirdQuickLinksRow(),
+            this.createFourthQuickLinksRow()
+        ].filter(row => row !== null);
+
         return {
-            embeds: [],
-            components: []
+            embeds: [embed],
+            components: components.length > 0 ? components : []
         };
     }
 

@@ -1,0 +1,133 @@
+version: '3.8'
+
+# =============================================================================
+# HomeLab Discord Bot - Production Docker Compose Configuration
+# =============================================================================
+# This configuration is optimized for production deployment with:
+# - Resource limits and reservations
+# - Health checks and monitoring
+# - Logging configuration
+# - Security best practices
+# - Backup-ready volumes
+#
+# Usage: docker-compose -f docker-compose.prod.yml up -d
+# =============================================================================
+
+services:
+  homelab-discord-bot:
+    # =========================================================================
+    # Container Configuration
+    # =========================================================================
+    image: brad00/discordbotproject-homelab-discord-bot:latest
+    container_name: homelab-discord-bot
+    restart: unless-stopped
+    
+    # =========================================================================
+    # Environment Variables
+    # =========================================================================
+    env_file:
+      - .env
+    
+    # =========================================================================
+    # Volume Mounts
+    # =========================================================================
+    volumes:
+      # Docker socket for container management
+      - ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:rw
+      
+      # Persistent configuration storage
+      - bot-config:/app/config
+      
+      # Application logs
+      - bot-logs:/app/logs
+    
+    # =========================================================================
+    # Security & Permissions
+    # =========================================================================
+    # Run as root to access Docker socket (required for container management)
+    user: "0:0"
+    
+    # Privileged mode for Docker socket access
+    privileged: true
+    
+    # =========================================================================
+    # Resource Management
+    # =========================================================================
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'          # Maximum 0.5 CPU cores
+          memory: 512M         # Maximum 512MB RAM
+        reservations:
+          cpus: '0.25'         # Guaranteed 0.25 CPU cores
+          memory: 256M         # Guaranteed 256MB RAM
+    
+    # =========================================================================
+    # Health Checks
+    # =========================================================================
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "node.*src/index.js"]
+      interval: 30s            # Check every 30 seconds
+      timeout: 10s             # Timeout after 10 seconds
+      retries: 3               # Retry 3 times before marking unhealthy
+      start_period: 40s        # Wait 40 seconds before first check
+    
+    # =========================================================================
+    # Logging Configuration
+    # =========================================================================
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"        # Maximum log file size
+        max-file: "3"          # Keep 3 log files (rotation)
+    
+    # =========================================================================
+    # Network & Labels
+    # =========================================================================
+    labels:
+      # Disable Traefik routing
+      - "traefik.enable=false"
+      
+      # Application labels
+      - "homelab.bot.name=discord-bot"
+      - "homelab.bot.version=latest"
+      - "homelab.bot.environment=production"
+      - "homelab.bot.description=HomeLab Discord Bot for monitoring and management"
+      
+      # Monitoring labels
+      - "prometheus.scrape=true"
+      - "prometheus.port=9090"
+      
+      # Backup labels
+      - "backup.include=true"
+      - "backup.frequency=daily"
+
+# =============================================================================
+# Volume Configuration
+# =============================================================================
+volumes:
+  # Persistent configuration storage
+  bot-config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/config
+  
+  # Application logs
+  bot-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/logs
+
+# =============================================================================
+# Network Configuration
+# =============================================================================
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
