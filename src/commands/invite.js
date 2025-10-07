@@ -82,43 +82,20 @@ module.exports = {
                     components: []
                 });
 
-                           // Always go through admin approval system
-                           if (bot.modules.adminManager) {
-                               const adminChannelId = bot.modules.adminManager.getAdminChannel();
-                               if (adminChannelId) {
-                                   const adminChannel = interaction.client.channels.cache.get(adminChannelId);
-                                   if (adminChannel) {
-                                       const adminEmbed = new EmbedBuilder()
-                                           .setTitle('🔔 New Invite Request')
-                                           .setDescription(`**${requester.username}** is requesting an invite for **${service}**`)
-                                           .addFields(
-                                               { name: 'Name', value: name, inline: true },
-                                               { name: 'Service', value: service, inline: true },
-                                               { name: 'Requested At', value: new Date().toLocaleString(), inline: true },
-                                               { name: 'Message', value: message, inline: false }
-                                           )
-                                           .setColor(0xffa500)
-                                           .setTimestamp();
-
-                                       // Create approval buttons
-                                       const approvalRow = new ActionRowBuilder()
-                                           .addComponents(
-                                               new ButtonBuilder()
-                                                   .setCustomId(`approve_invite_${requester.id}_${service.toLowerCase()}`)
-                                                   .setLabel('✅ Approve')
-                                                   .setStyle(ButtonStyle.Success),
-                                               new ButtonBuilder()
-                                                   .setCustomId(`deny_invite_${requester.id}_${service.toLowerCase()}`)
-                                                   .setLabel('❌ Deny')
-                                                   .setStyle(ButtonStyle.Danger)
-                                           );
-
-                                       await adminChannel.send({ 
-                                           embeds: [adminEmbed], 
-                                           components: [approvalRow] 
-                                       });
-                                   }
-                               }
+                           // Use InviteManager to handle the approval request
+                           if (bot.modules.inviteManager) {
+                               const inviteData = {
+                                   requester: {
+                                       id: requester.id,
+                                       name: name
+                                   },
+                                   service: service,
+                                   message: message
+                               };
+                               
+                               await bot.modules.inviteManager.sendApprovalRequest(inviteData);
+                           } else {
+                               console.error('InviteManager not available');
                            }
 
                            // Update user message for admin approval

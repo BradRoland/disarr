@@ -11,7 +11,10 @@ class InviteManager {
         this.wizarr = new WizarrIntegration(config);
         this.pendingInvites = new Map(); // Store pending invite requests
         this.configPath = path.join(process.cwd(), 'config', 'pending-invites.json');
-        this.loadPendingInvites(); // Load pending invites from file
+        // Load pending invites from file (async, will be called when needed)
+        this.loadPendingInvites().catch(error => {
+            console.error('Error loading pending invites on startup:', error);
+        });
     }
 
     async sendApprovalRequest(inviteData) {
@@ -270,6 +273,9 @@ class InviteManager {
 
     async notifyRequester(inviteData, inviteResult, approved) {
         try {
+            // Get the user from the Discord client
+            const user = await this.client.users.fetch(inviteData.requester.id);
+            
             if (approved && inviteResult) {
                 const successEmbed = new EmbedBuilder()
                     .setTitle('🎉 Invite Approved!')
@@ -290,10 +296,13 @@ class InviteManager {
                     .setFooter({ text: 'HomeLab Discord Bot • Welcome!' })
                     .setTimestamp();
 
-                await inviteData.originalInteraction.followUp({
-                    embeds: [successEmbed],
-                    ephemeral: true
-                });
+                try {
+                    await user.send({ embeds: [successEmbed] });
+                    console.log(`Successfully sent approval DM to ${inviteData.requester.name}`);
+                } catch (dmError) {
+                    console.error(`Failed to send DM to ${inviteData.requester.name}:`, dmError);
+                    // Could fall back to sending in a channel or logging the invite URL for admin to share
+                }
             } else {
                 const deniedEmbed = new EmbedBuilder()
                     .setTitle('❌ Invite Request Denied')
@@ -309,10 +318,12 @@ class InviteManager {
                     .setFooter({ text: 'HomeLab Discord Bot • Request Denied' })
                     .setTimestamp();
 
-                await inviteData.originalInteraction.followUp({
-                    embeds: [deniedEmbed],
-                    ephemeral: true
-                });
+                try {
+                    await user.send({ embeds: [deniedEmbed] });
+                    console.log(`Successfully sent denial DM to ${inviteData.requester.name}`);
+                } catch (dmError) {
+                    console.error(`Failed to send DM to ${inviteData.requester.name}:`, dmError);
+                }
             }
         } catch (error) {
             console.error('Error notifying requester:', error);
@@ -320,7 +331,20 @@ class InviteManager {
     }
 
     async getPendingInvites() {
+        // Ensure pending invites are loaded
+        await this.ensurePendingInvitesLoaded();
         return Array.from(this.pendingInvites.values());
+    }
+
+    async ensurePendingInvitesLoaded() {
+        // If pendingInvites is empty and we haven't loaded yet, try to load
+        if (this.pendingInvites.size === 0) {
+            try {
+                await this.loadPendingInvites();
+            } catch (error) {
+                console.error('Error ensuring pending invites are loaded:', error);
+            }
+        }
     }
 
     async cleanupExpiredInvites() {
