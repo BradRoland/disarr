@@ -12,7 +12,8 @@ module.exports = {
                     { name: 'Status', value: 'status' },
                     { name: 'Start Container', value: 'start' },
                     { name: 'Stop Container', value: 'stop' },
-                    { name: 'Restart Container', value: 'restart' }
+                    { name: 'Restart Container', value: 'restart' },
+                    { name: 'View Logs', value: 'logs' }
                 )
         )
         .addStringOption(option =>
@@ -35,7 +36,7 @@ module.exports = {
         const action = interaction.options.getString('action') || 'status';
         const containerName = interaction.options.getString('container');
 
-        if (['start', 'stop', 'restart'].includes(action) && !containerName) {
+        if (['start', 'stop', 'restart', 'logs'].includes(action) && !containerName) {
             await interaction.reply({
                 content: '❌ Container name is required for this action.',
                 ephemeral: true
@@ -50,6 +51,28 @@ module.exports = {
                 const dockerStats = await bot.modules.dockerMonitor.getContainerStatus();
                 const dashboard = bot.modules.dashboardEmbed.createDockerStatusEmbed(dockerStats);
                 await interaction.editReply(dashboard);
+            } else if (action === 'logs') {
+                const result = await bot.modules.dockerMonitor.getContainerLogs(containerName);
+                
+                if (!result.success) {
+                    await interaction.editReply({
+                        content: `❌ Error getting logs for ${containerName}: ${result.message}`,
+                        ephemeral: true
+                    });
+                    return;
+                }
+
+                // Format logs for Discord (Discord has a 2000 character limit per message)
+                const maxLength = 1900; // Leave some buffer
+                let logText = result.logs.join('\n');
+                
+                if (logText.length > maxLength) {
+                    logText = logText.substring(0, maxLength) + '\n... (truncated)';
+                }
+
+                await interaction.editReply({
+                    content: `📋 **Logs for ${result.containerName}** (${result.totalLines} lines)\n\`\`\`\n${logText}\n\`\`\``
+                });
             } else {
                 let result;
                 switch (action) {

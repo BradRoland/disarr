@@ -210,6 +210,45 @@ class DockerMonitor {
         }
     }
 
+    async getContainerLogs(name, lines = 50) {
+        try {
+            const container = await this.getContainerByName(name);
+            if (!container) {
+                throw new Error(`Container ${name} not found`);
+            }
+            
+            const logs = await container.logs({
+                stdout: true,
+                stderr: true,
+                timestamps: true,
+                tail: lines
+            });
+            
+            // Convert buffer to string and clean up
+            let logText = logs.toString('utf8');
+            
+            // Remove ANSI color codes
+            logText = logText.replace(/\x1b\[[0-9;]*m/g, '');
+            
+            // Split into lines and filter out empty lines
+            const logLines = logText.split('\n').filter(line => line.trim().length > 0);
+            
+            return {
+                success: true,
+                logs: logLines,
+                totalLines: logLines.length,
+                containerName: name
+            };
+        } catch (error) {
+            console.error(`Error getting logs for container ${name}:`, error);
+            return { 
+                success: false, 
+                message: error.message,
+                containerName: name
+            };
+        }
+    }
+
     getErrorStats(errorMessage = 'Docker monitoring unavailable') {
         return {
             total: 0,
