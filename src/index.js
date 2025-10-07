@@ -186,10 +186,17 @@ class HomeLabBot {
     }
 
     setupEventHandlers() {
-        this.client.once('ready', () => {
+        this.client.once('ready', async () => {
             console.log(`🤖 HomeLab Discord Bot is online as ${this.client.user.tag}!`);
             this.setupSlashCommands();
             this.startPeriodicUpdates();
+            
+            // Restore button collectors for existing pending invites after bot is ready
+            if (this.modules.inviteManager) {
+                setTimeout(async () => {
+                    await this.modules.inviteManager.restoreButtonCollectors();
+                }, 2000); // Wait 2 seconds for everything to be fully ready
+            }
         });
 
         this.client.on('interactionCreate', async (interaction) => {
@@ -277,117 +284,7 @@ class HomeLabBot {
         try {
             const customId = interaction.customId;
             
-            if (customId.startsWith('approve_invite_') || customId.startsWith('deny_invite_')) {
-                const isApproval = customId.startsWith('approve_invite_');
-                const parts = customId.split('_');
-                const userId = parts[2];
-                const service = parts[3];
-                
-                // Get the user who made the request
-                const requester = await this.client.users.fetch(userId);
-                
-                       if (isApproval) {
-                           // Try to create a Wizarr invite first
-                           let inviteUrl;
-                           let successMessage = 'approved';
-                           
-                           if (this.modules.wizarrIntegration && this.modules.wizarrIntegration.isConfigured()) {
-                               console.log(`Creating Wizarr invite for ${service} via admin approval...`);
-                               const inviteResult = await this.modules.wizarrIntegration.createInvite({
-                                   service: service
-                               });
-
-                               if (inviteResult.success) {
-                                   inviteUrl = inviteResult.inviteUrl;
-                                   successMessage = 'approved and invite created';
-                               } else {
-                                   console.error('Wizarr API failed during admin approval:', inviteResult.error);
-                                   // Fall back to direct service links
-                                   if (service.toLowerCase() === 'plex') {
-                                       inviteUrl = 'https://plex.brads-lab.com';
-                                   } else if (service.toLowerCase() === 'jellyfin') {
-                                       inviteUrl = 'https://jellyfin.brads-lab.com';
-                                   } else {
-                                       inviteUrl = `https://${service.toLowerCase()}.brads-lab.com`;
-                                   }
-                               }
-                           } else {
-                               // Fall back to direct service links
-                               if (service.toLowerCase() === 'plex') {
-                                   inviteUrl = 'https://plex.brads-lab.com';
-                               } else if (service.toLowerCase() === 'jellyfin') {
-                                   inviteUrl = 'https://jellyfin.brads-lab.com';
-                               } else {
-                                   inviteUrl = `https://${service.toLowerCase()}.brads-lab.com`;
-                               }
-                           }
-                           
-                           // Approve the invite
-                           const approvedEmbed = new EmbedBuilder()
-                               .setTitle('✅ Invite Approved')
-                               .setDescription(`**${requester.username}**'s request for **${service}** has been ${successMessage}!`)
-                               .addFields(
-                                   { name: 'Service Access', value: `[Click here to access ${service}](${inviteUrl})`, inline: false },
-                                   { name: 'Instructions', value: '1. Click the link above\n2. Create an account or log in\n3. Contact an admin if you need help', inline: false }
-                               )
-                               .setColor(0x00ff00)
-                               .setTimestamp();
-                           
-                           await interaction.update({
-                               embeds: [approvedEmbed],
-                               components: []
-                           });
-                           
-                           // Send notification to the requester with the service link
-                           try {
-                               const userEmbed = new EmbedBuilder()
-                                   .setTitle('🎉 Invite Approved!')
-                                   .setDescription(`Your request for **${service}** has been ${successMessage}!`)
-                                   .addFields(
-                                       { name: 'Service', value: service, inline: true },
-                                       { name: 'Approved At', value: new Date().toLocaleString(), inline: true },
-                                       { name: 'Service Access', value: `[Click here to access ${service}](${inviteUrl})`, inline: false },
-                                       { name: 'Instructions', value: '1. Click the link above\n2. Create an account or log in\n3. Contact an admin if you need help', inline: false }
-                                   )
-                                   .setColor(0x00ff00)
-                                   .setTimestamp();
-                               
-                               await requester.send({ embeds: [userEmbed] });
-                           } catch (error) {
-                               console.error('Could not send DM to user:', error);
-                           }
-                    
-                } else {
-                    // Deny the invite
-                    const deniedEmbed = new EmbedBuilder()
-                        .setTitle('❌ Invite Denied')
-                        .setDescription(`**${requester.username}**'s request for **${service}** has been denied.`)
-                        .setColor(0xff0000)
-                        .setTimestamp();
-                    
-                    await interaction.update({
-                        embeds: [deniedEmbed],
-                        components: []
-                    });
-                    
-                    // Send notification to the requester
-                    try {
-                        const userEmbed = new EmbedBuilder()
-                            .setTitle('❌ Invite Denied')
-                            .setDescription(`Your request for **${service}** has been denied.`)
-                            .addFields(
-                                { name: 'Service', value: service, inline: true },
-                                { name: 'Denied At', value: new Date().toLocaleString(), inline: true }
-                            )
-                            .setColor(0xff0000)
-                            .setTimestamp();
-                        
-                        await requester.send({ embeds: [userEmbed] });
-                    } catch (error) {
-                        console.error('Could not send DM to user:', error);
-                    }
-                }
-            } else if (customId.startsWith('dashboard_links_') || customId.startsWith('dashboard_service_')) {
+            if (customId.startsWith('dashboard_links_') || customId.startsWith('dashboard_service_')) {
                 await this.handleDashboardButtonInteraction(interaction);
             }
         } catch (error) {

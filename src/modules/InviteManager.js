@@ -65,12 +65,12 @@ class InviteManager {
             const row = new ActionRowBuilder()
                 .addComponents(
                     new ButtonBuilder()
-                        .setCustomId(`approve_invite_${inviteData.requester.id}`)
+                        .setCustomId(`approve_invite_${inviteData.requester.id}_${inviteData.service.toLowerCase()}`)
                         .setLabel('✅ Approve')
                         .setStyle(ButtonStyle.Success)
                         .setEmoji('✅'),
                     new ButtonBuilder()
-                        .setCustomId(`deny_invite_${inviteData.requester.id}`)
+                        .setCustomId(`deny_invite_${inviteData.requester.id}_${inviteData.service.toLowerCase()}`)
                         .setLabel('❌ Deny')
                         .setStyle(ButtonStyle.Danger)
                         .setEmoji('❌')
@@ -383,6 +383,41 @@ class InviteManager {
             }
             // File doesn't exist yet, start with empty Map
             this.pendingInvites = new Map();
+        }
+    }
+
+    async restoreButtonCollectors() {
+        console.log('Attempting to restore button collectors for existing pending invites...');
+        for (const [requesterId, inviteData] of this.pendingInvites.entries()) {
+            try {
+                // Find the admin message
+                const adminChannelId = this.bot?.modules?.adminManager?.getAdminChannel() || 
+                                     this.config.alertChannelId || 
+                                     process.env.ALERT_CHANNEL_ID;
+                
+                console.log(`Looking for admin channel: ${adminChannelId}, message ID: ${inviteData.adminMessageId}`);
+                
+                if (adminChannelId && inviteData.adminMessageId) {
+                    const adminChannel = this.client.channels.cache.get(adminChannelId);
+                    if (adminChannel) {
+                        console.log(`Found admin channel: ${adminChannel.name}`);
+                        const message = await adminChannel.messages.fetch(inviteData.adminMessageId);
+                        if (message) {
+                            // Set up button collector for this existing message
+                            this.setupAdminButtonCollector(message, requesterId);
+                            console.log(`✅ Restored button collector for invite request from ${inviteData.requester.name}`);
+                        } else {
+                            console.log(`❌ Could not find message ${inviteData.adminMessageId} in channel ${adminChannelId}`);
+                        }
+                    } else {
+                        console.log(`❌ Could not find admin channel ${adminChannelId}`);
+                    }
+                } else {
+                    console.log(`❌ Missing admin channel ID or message ID for ${requesterId}`);
+                }
+            } catch (error) {
+                console.error(`Error restoring button collector for ${requesterId}:`, error);
+            }
         }
     }
 

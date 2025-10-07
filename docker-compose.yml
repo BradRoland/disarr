@@ -20,7 +20,7 @@ services:
     # =========================================================================
     # Container Configuration
     # =========================================================================
-    image: brad00/discordbotproject-homelab-discord-bot:latest
+    build: .
     container_name: homelab-discord-bot
     restart: unless-stopped
     
